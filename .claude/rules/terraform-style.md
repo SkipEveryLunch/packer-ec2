@@ -11,6 +11,27 @@
 | `versions.tf` | required_version + provider（default_tags 含む） |
 | `aws.tf` | module 呼び出しのみ（環境ディレクトリ直下） |
 
+## モジュール設計
+
+**1 AWSリソース種別 = 1モジュール**
+
+```
+modules/aws/
+├── vpc/               # aws_vpc のみ
+├── subnet/            # aws_subnet のみ
+├── internet_gateway/  # aws_internet_gateway のみ
+├── route_table/       # aws_route_table + aws_route_table_association
+├── security_group/    # aws_security_group のみ
+├── alb/               # aws_lb + aws_lb_listener + aws_lb_target_group
+├── asg/               # aws_launch_template + aws_autoscaling_group
+├── aurora/            # aws_rds_cluster + aws_rds_cluster_instance
+└── iam_role/          # aws_iam_role + aws_iam_instance_profile
+```
+
+- 同種リソースを1ファイルにまとめることで記法・パターンが統一される
+- 複数の密結合リソース（lb + listener + target_group 等）は同モジュールにまとめてよい
+- 「機能」や「サービス名」でモジュールを切らない
+
 ## 命名規則
 
 | 種別 | パターン | 例 |
