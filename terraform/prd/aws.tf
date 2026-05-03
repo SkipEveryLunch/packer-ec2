@@ -44,6 +44,18 @@ module "alb" {
   }
 }
 
+module "oidc_github_actions" {
+  source = "../modules/aws/oidc_github_actions"
+}
+
+module "iam_role" {
+  source                  = "../modules/aws/iam_role"
+  env                     = local.env
+  account_id              = var.account_id
+  oidc_github_actions_arn = module.oidc_github_actions.arn
+  github_repo             = var.github_repo
+}
+
 resource "aws_route53_record" "app" {
   zone_id = data.aws_route53_zone.main.zone_id
   name    = local.domain

@@ -1,3 +1,4 @@
-account_id = ""
-domain     = ""
-profile    = ""
+account_id  = ""
+domain      = ""
+profile     = ""
+github_repo = "" // "org/repo" 形式
