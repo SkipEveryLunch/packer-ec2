@@ -1,0 +1,40 @@
+# Terraform
+**/.terraform/
+*.tfstate
+*.tfstate.backup
+crash.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+*.tfvars
+
+# Packer
+packer_cache/
+packer/manifest.json
+
+# Rails
+ror/log/*
+ror/tmp/*
+ror/storage/*
+ror/public/assets
+ror/public/packs
+ror/.bundle/
+ror/vendor/bundle
+ror/config/master.key
+ror/config/credentials/*.key
+ror/db/*.sqlite3
+ror/db/*.sqlite3-journal
+ror/node_modules/
+ror/.env*
+ror/.byebug_history
+ror/yarn-error.log
+
+# OS
+.DS_Store
+
+# Editor
+.idea/
+.vscode/
+*.swp
+*.swo
