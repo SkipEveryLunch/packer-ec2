@@ -1,0 +1,78 @@
+name: Deploy
+
+on:
+  workflow_run:
+    workflows: ["Build AMI"]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    if: github.event.workflow_run.conclusion == 'success'
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ap-northeast-1
+
+      - name: Get values from SSM
+        id: ssm
+        run: |
+          echo "ami_id=$(aws ssm get-parameter --name /ec2-packer/prd/ami-id --query Parameter.Value --output text)" >> $GITHUB_OUTPUT
+          echo "lt_id=$(aws ssm get-parameter --name /ec2-packer/prd/launch-template-id --query Parameter.Value --output text)" >> $GITHUB_OUTPUT
+          echo "asg_name=$(aws ssm get-parameter --name /ec2-packer/prd/asg-name --query Parameter.Value --output text)" >> $GITHUB_OUTPUT
+
+      - name: Create new Launch Template version
+        id: lt
+        run: |
+          VERSION=$(aws ec2 create-launch-template-version \
+            --launch-template-id ${{ steps.ssm.outputs.lt_id }} \
+            --source-version '$Latest' \
+            --launch-template-data "{\"ImageId\":\"${{ steps.ssm.outputs.ami_id }}\"}" \
+            --query 'LaunchTemplateVersion.VersionNumber' \
+            --output text)
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Set Launch Template default version
+        run: |
+          aws ec2 modify-launch-template \
+            --launch-template-id ${{ steps.ssm.outputs.lt_id }} \
+            --default-version ${{ steps.lt.outputs.version }}
+
+      - name: Start Instance Refresh
+        id: refresh
+        run: |
+          REFRESH_ID=$(aws autoscaling start-instance-refresh \
+            --auto-scaling-group-name ${{ steps.ssm.outputs.asg_name }} \
+            --preferences '{"MinHealthyPercentage": 50}' \
+            --query 'InstanceRefreshId' \
+            --output text)
+          echo "refresh_id=$REFRESH_ID" >> $GITHUB_OUTPUT
+
+      - name: Wait for Instance Refresh
+        run: |
+          while true; do
+            STATUS=$(aws autoscaling describe-instance-refreshes \
+              --auto-scaling-group-name ${{ steps.ssm.outputs.asg_name }} \
+              --instance-refresh-ids ${{ steps.refresh.outputs.refresh_id }} \
+              --query 'InstanceRefreshes[0].Status' \
+              --output text)
+            echo "Status: $STATUS"
+            case $STATUS in
+              Successful)
+                echo "Instance refresh completed"
+                break
+                ;;
+              Failed|Cancelled|RollbackFailed)
+                echo "Instance refresh failed: $STATUS"
+                exit 1
+                ;;
+            esac
+            sleep 30
+          done
