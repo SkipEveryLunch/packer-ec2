@@ -16,7 +16,8 @@ chown -R ec2-user:ec2-user "$APP_DIR"
 
 # Bundle install
 cd "$APP_DIR"
-bundle install --without development test
+bundle config set --local without 'development test'
+bundle install
 
 # Generate SECRET_KEY_BASE and persist to environment
 SECRET=$(bundle exec rails secret)
