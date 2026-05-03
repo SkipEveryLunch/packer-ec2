@@ -44,6 +44,18 @@ module "alb" {
   }
 }
 
+module "asg" {
+  source = "../modules/aws/asg"
+  env    = local.env
+  asg = {
+    instance_profile_name = module.iam_role.profile_name_ec2
+    security_group_id     = module.security_group.id_ec2
+    subnet_id_1a          = module.subnet.id_public_1a
+    subnet_id_1c          = module.subnet.id_public_1c
+    target_group_arn      = module.alb.arn_target_group_app
+  }
+}
+
 module "oidc_github_actions" {
   source = "../modules/aws/oidc_github_actions"
 }
