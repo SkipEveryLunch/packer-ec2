@@ -47,11 +47,13 @@ build {
   }
 
   provisioner "shell" {
-    script = "packer/scripts/install.sh"
+    execute_command = "sudo sh -c '{{ .Vars }} {{ .Path }}'"
+    script          = "packer/scripts/install.sh"
   }
 
   provisioner "shell" {
-    script = "packer/scripts/setup-service.sh"
+    execute_command = "sudo sh -c '{{ .Vars }} {{ .Path }}'"
+    script          = "packer/scripts/setup-service.sh"
   }
 
   post-processor "manifest" {
