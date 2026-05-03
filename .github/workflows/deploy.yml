@@ -57,13 +57,15 @@ jobs:
 
       - name: Wait for Instance Refresh
         run: |
+          TIMEOUT=1800
+          ELAPSED=0
           while true; do
             STATUS=$(aws autoscaling describe-instance-refreshes \
               --auto-scaling-group-name ${{ steps.ssm.outputs.asg_name }} \
               --instance-refresh-ids ${{ steps.refresh.outputs.refresh_id }} \
               --query 'InstanceRefreshes[0].Status' \
               --output text)
-            echo "Status: $STATUS"
+            echo "Status: $STATUS (${ELAPSED}s elapsed)"
             case $STATUS in
               Successful)
                 echo "Instance refresh completed"
@@ -74,5 +76,12 @@ jobs:
                 exit 1
                 ;;
             esac
+            if [ $ELAPSED -ge $TIMEOUT ]; then
+              echo "Timed out after ${TIMEOUT}s. Cancelling instance refresh."
+              aws autoscaling cancel-instance-refresh \
+                --auto-scaling-group-name ${{ steps.ssm.outputs.asg_name }}
+              exit 1
+            fi
             sleep 30
+            ELAPSED=$((ELAPSED + 30))
           done
