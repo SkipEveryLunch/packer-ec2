@@ -11,6 +11,21 @@ resource "aws_ssm_parameter" "ami_id" {
 }
 
 /************************************************************
+SSM parameters (for GHA deploy pipeline)
+************************************************************/
+resource "aws_ssm_parameter" "launch_template_id" {
+  name  = "/ec2-packer/${var.env}/launch-template-id"
+  type  = "String"
+  value = aws_launch_template.app.id
+}
+
+resource "aws_ssm_parameter" "asg_name" {
+  name  = "/ec2-packer/${var.env}/asg-name"
+  type  = "String"
+  value = aws_autoscaling_group.app.name
+}
+
+/************************************************************
 launch template
 ************************************************************/
 resource "aws_launch_template" "app" {
