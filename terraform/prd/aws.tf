@@ -33,9 +33,9 @@ module "security_group" {
 }
 
 module "alb" {
-  source  = "../modules/aws/alb"
-  env     = local.env
-  vpc_id  = module.vpc.id_app
+  source = "../modules/aws/alb"
+  env    = local.env
+  vpc_id = module.vpc.id_app
   alb = {
     security_group_id = module.security_group.id_alb
     subnet_id_1a      = module.subnet.id_public_1a
@@ -70,7 +70,7 @@ module "iam_role" {
 
 resource "aws_route53_record" "app" {
   zone_id = data.aws_route53_zone.main.zone_id
-  name    = local.domain
+  name    = local.api_fqdn
   type    = "A"
   alias {
     name                   = module.alb.dns_name_app
