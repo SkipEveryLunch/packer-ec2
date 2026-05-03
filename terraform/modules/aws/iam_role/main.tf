@@ -116,6 +116,7 @@ resource "aws_iam_policy" "asg_refresh" {
       Effect = "Allow"
       Action = [
         "ec2:CreateLaunchTemplateVersion",
+        "ec2:ModifyLaunchTemplate",
         "ec2:DescribeLaunchTemplates",
         "ec2:DescribeLaunchTemplateVersions",
         "autoscaling:UpdateAutoScalingGroup",
