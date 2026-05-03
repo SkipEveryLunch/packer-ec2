@@ -31,6 +31,12 @@ jobs:
       - name: Create new Launch Template version
         id: lt
         run: |
+          PREV_VERSION=$(aws ec2 describe-launch-templates \
+            --launch-template-ids ${{ steps.ssm.outputs.lt_id }} \
+            --query 'LaunchTemplates[0].DefaultVersionNumber' \
+            --output text)
+          echo "prev_version=$PREV_VERSION" >> $GITHUB_OUTPUT
+
           VERSION=$(aws ec2 create-launch-template-version \
             --launch-template-id ${{ steps.ssm.outputs.lt_id }} \
             --source-version '$Latest' \
@@ -77,9 +83,12 @@ jobs:
                 ;;
             esac
             if [ $ELAPSED -ge $TIMEOUT ]; then
-              echo "Timed out after ${TIMEOUT}s. Cancelling instance refresh."
+              echo "Timed out after ${TIMEOUT}s. Cancelling instance refresh and rolling back Launch Template."
               aws autoscaling cancel-instance-refresh \
                 --auto-scaling-group-name ${{ steps.ssm.outputs.asg_name }}
+              aws ec2 modify-launch-template \
+                --launch-template-id ${{ steps.ssm.outputs.lt_id }} \
+                --default-version ${{ steps.lt.outputs.prev_version }}
               exit 1
             fi
             sleep 30
