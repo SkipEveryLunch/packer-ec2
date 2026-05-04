@@ -197,6 +197,116 @@ data "aws_acm_certificate" "main" {
 ************************************************************/
 ```
 
+## IAM パターン
+
+### ロール命名
+```
+aws_iam_role        : {service}-{env}           例: cp-bastion-prd
+aws_iam_policy      : {permission-type}-{env}   例: secrets-manager-read-prd
+aws_iam_instance_profile : ロール名と同一
+```
+
+### AssumeRole ポリシーの書き方
+
+```hcl
+// EC2 / Lambda / ECS タスク（サービスプリンシパル）
+assume_role_policy = jsonencode({
+  Version = "2012-10-17"
+  Statement = [{
+    Effect    = "Allow"
+    Action    = "sts:AssumeRole"
+    Principal = { Service = "ec2.amazonaws.com" }
+  }]
+})
+
+// GitHub Actions OIDC（StringLike で branch/tag を絞る）
+assume_role_policy = jsonencode({
+  Version = "2012-10-17"
+  Statement = [{
+    Effect = "Allow"
+    Action = "sts:AssumeRoleWithWebIdentity"
+    Principal = { Federated = var.oidc_github_actions_arn }
+    Condition = {
+      StringLike = {
+        "token.actions.githubusercontent.com:sub" = "repo:${var.github_repo}:ref:refs/heads/main"
+      }
+    }
+  }]
+})
+
+// IAM スイッチロール（複数アカウントから AssumeRole）
+assume_role_policy = jsonencode({
+  Version = "2012-10-17"
+  Statement = [{
+    Effect    = "Allow"
+    Action    = "sts:AssumeRole"
+    Principal = {
+      AWS = [for id in local.allowed_account_ids : "arn:aws:iam::${id}:root"]
+    }
+  }]
+})
+```
+
+### ポリシーアタッチは for_each でまとめる
+
+```hcl
+// AWS 管理ポリシーとカスタムポリシーを混在させてよい
+resource "aws_iam_role_policy_attachment" "gha_deploy" {
+  for_each = {
+    ecr          = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryPowerUser"
+    custom_build = aws_iam_policy.packer_build.arn
+    custom_ssm   = aws_iam_policy.ssm_params.arn
+  }
+  role       = aws_iam_role.gha_deploy.name
+  policy_arn = each.value
+}
+```
+
+### outputs 命名プレフィックス（IAM）
+
+| プレフィックス | 用途 |
+|---|---|
+| `arn_*` | Role ARN |
+| `name_*` | Role 名 |
+| `profile_name_*` | Instance Profile 名 |
+
+### OIDC プロバイダーは独立モジュールに切り出す
+
+```
+modules/aws/oidc_github_actions/   # aws_iam_openid_connect_provider のみ
+modules/aws/iam_role/              # aws_iam_role + aws_iam_policy + attachment
+```
+
+OIDC プロバイダーの ARN を iam_role モジュールに変数として渡す。
+
+```hcl
+module "oidc_github_actions" {
+  source = "../modules/aws/oidc_github_actions"
+}
+
+module "iam_role" {
+  source                  = "../modules/aws/iam_role"
+  oidc_github_actions_arn = module.oidc_github_actions.arn
+}
+```
+
+### カスタムポリシーは独立 aws_iam_policy リソースとして定義する
+
+インラインポリシー（`aws_iam_role_policy`）は使わない。独立させることで複数ロールからの再利用が可能になる。
+
+```hcl
+// ❌ インラインポリシー（再利用不可）
+resource "aws_iam_role_policy" "foo" { ... }
+
+// ✅ 独立ポリシー → attachment で付与
+resource "aws_iam_policy" "ssm_params" { ... }
+resource "aws_iam_role_policy_attachment" "..." {
+  for_each   = { ssm = aws_iam_policy.ssm_params.arn }
+  role       = aws_iam_role.foo.name
+  policy_arn = each.value
+}
+```
+
 ## Packer 連携パターン
 
 - Packer でビルドした AMI ID は SSM Parameter Store 経由で受け渡す
