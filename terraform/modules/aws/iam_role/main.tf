@@ -15,7 +15,8 @@ resource "aws_iam_role" "ec2" {
 
 resource "aws_iam_role_policy_attachment" "ec2" {
   for_each = {
-    ssm = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+    ssm          = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+    secrets_read = aws_iam_policy.secrets_read.arn
   }
   role       = aws_iam_role.ec2.name
   policy_arn = each.value
@@ -125,6 +126,18 @@ resource "aws_iam_policy" "asg_refresh" {
         "autoscaling:DescribeAutoScalingGroups",
       ]
       Resource = "*"
+    }]
+  })
+}
+
+resource "aws_iam_policy" "secrets_read" {
+  name = "secrets-read-${var.env}"
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = "secretsmanager:GetSecretValue"
+      Resource = var.secret_app_env_arn
     }]
   })
 }

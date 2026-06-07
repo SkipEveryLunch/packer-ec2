@@ -46,6 +46,11 @@ build {
     destination = "/tmp/"
   }
 
+  provisioner "file" {
+    source      = "packer/files"
+    destination = "/tmp/"
+  }
+
   provisioner "shell" {
     execute_command = "sudo sh -c '{{ .Vars }} {{ .Path }}'"
     script          = "packer/scripts/install.sh"

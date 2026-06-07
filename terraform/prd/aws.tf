@@ -60,12 +60,18 @@ module "oidc_github_actions" {
   source = "../modules/aws/oidc_github_actions"
 }
 
+module "secrets_manager" {
+  source = "../modules/aws/secrets_manager"
+  env    = local.env
+}
+
 module "iam_role" {
   source                  = "../modules/aws/iam_role"
   env                     = local.env
   account_id              = var.account_id
   oidc_github_actions_arn = module.oidc_github_actions.arn
   github_repo             = var.github_repo
+  secret_app_env_arn      = module.secrets_manager.arn_app_env
 }
 
 resource "aws_route53_record" "app" {

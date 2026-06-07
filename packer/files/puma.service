@@ -1,0 +1,17 @@
+[Unit]
+Description=Puma HTTP Server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ec2-user
+WorkingDirectory=/var/www/app
+Environment=AWS_REGION=ap-northeast-1
+EnvironmentFile=/etc/environment
+ExecStart=/usr/local/bin/with-secrets /usr/bin/bundle exec puma -C /var/www/app/config/puma.rb
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
