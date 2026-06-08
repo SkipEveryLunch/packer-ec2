@@ -57,7 +57,7 @@ auto scaling group
 resource "aws_autoscaling_group" "app" {
   name                      = "app-${var.env}"
   min_size                  = 1
-  max_size                  = 2
+  max_size                  = 1
   desired_capacity          = 1
   vpc_zone_identifier       = [var.asg.subnet_id_1a, var.asg.subnet_id_1c]
   target_group_arns         = [var.asg.target_group_arn]

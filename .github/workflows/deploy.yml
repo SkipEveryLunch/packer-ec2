@@ -56,7 +56,7 @@ jobs:
         run: |
           REFRESH_ID=$(aws autoscaling start-instance-refresh \
             --auto-scaling-group-name ${{ steps.ssm.outputs.asg_name }} \
-            --preferences '{"MinHealthyPercentage": 50}' \
+            --preferences '{"MinHealthyPercentage": 0}' \
             --query 'InstanceRefreshId' \
             --output text)
           echo "refresh_id=$REFRESH_ID" >> $GITHUB_OUTPUT
