@@ -14,5 +14,8 @@ unzip -q /tmp/awscliv2.zip -d /tmp
 /tmp/aws/install
 rm -rf /tmp/awscliv2.zip /tmp/aws
 
+# CloudWatch Agent (config is placed at app AMI build time)
+dnf install -y amazon-cloudwatch-agent
+
 # Bundler
 gem install bundler --no-document

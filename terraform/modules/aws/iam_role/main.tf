@@ -17,6 +17,7 @@ resource "aws_iam_role_policy_attachment" "ec2" {
   for_each = {
     ssm          = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
     secrets_read = aws_iam_policy.secrets_read.arn
+    cw_agent     = "arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy"
   }
   role       = aws_iam_role.ec2.name
   policy_arn = each.value

@@ -65,6 +65,11 @@ module "secrets_manager" {
   env    = local.env
 }
 
+module "cloudwatch_logs" {
+  source = "../modules/aws/cloudwatch_logs"
+  env    = local.env
+}
+
 module "iam_role" {
   source                  = "../modules/aws/iam_role"
   env                     = local.env
