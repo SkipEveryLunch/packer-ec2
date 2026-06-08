@@ -29,7 +29,7 @@ resource "aws_iam_instance_profile" "ec2" {
 }
 
 /************************************************************
-GHA roles (one per workflow, OIDC trust narrowed by job_workflow_ref)
+GHA roles (one per workflow; trust narrowed at sub claim, policies differ per role)
 ************************************************************/
 resource "aws_iam_role" "gha_build_base" {
   name = "gha-build-base-${var.env}"
@@ -41,7 +41,10 @@ resource "aws_iam_role" "gha_build_base" {
       Principal = { Federated = var.oidc_github_actions_arn }
       Condition = {
         StringEquals = {
-          "token.actions.githubusercontent.com:job_workflow_ref" = "${var.github_repo}/.github/workflows/build-base-ami.yml@refs/heads/main"
+          "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com"
+        }
+        StringLike = {
+          "token.actions.githubusercontent.com:sub" = "repo:${var.github_repo}:ref:refs/heads/main"
         }
       }
     }]
@@ -58,7 +61,10 @@ resource "aws_iam_role" "gha_build_app" {
       Principal = { Federated = var.oidc_github_actions_arn }
       Condition = {
         StringEquals = {
-          "token.actions.githubusercontent.com:job_workflow_ref" = "${var.github_repo}/.github/workflows/build-ami.yml@refs/heads/main"
+          "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com"
+        }
+        StringLike = {
+          "token.actions.githubusercontent.com:sub" = "repo:${var.github_repo}:ref:refs/heads/main"
         }
       }
     }]
@@ -75,7 +81,10 @@ resource "aws_iam_role" "gha_deploy" {
       Principal = { Federated = var.oidc_github_actions_arn }
       Condition = {
         StringEquals = {
-          "token.actions.githubusercontent.com:job_workflow_ref" = "${var.github_repo}/.github/workflows/deploy.yml@refs/heads/main"
+          "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com"
+        }
+        StringLike = {
+          "token.actions.githubusercontent.com:sub" = "repo:${var.github_repo}:ref:refs/heads/main"
         }
       }
     }]
