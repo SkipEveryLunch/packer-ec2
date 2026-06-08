@@ -29,32 +29,80 @@ resource "aws_iam_instance_profile" "ec2" {
 }
 
 /************************************************************
-GHA deploy role
+GHA roles (one per workflow, OIDC trust narrowed by job_workflow_ref)
 ************************************************************/
-resource "aws_iam_role" "gha_deploy" {
-  name = "gha-deploy-${var.env}"
+resource "aws_iam_role" "gha_build_base" {
+  name = "gha-build-base-${var.env}"
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
-      Effect = "Allow"
-      Action = "sts:AssumeRoleWithWebIdentity"
-      Principal = {
-        Federated = var.oidc_github_actions_arn
-      }
+      Effect    = "Allow"
+      Action    = "sts:AssumeRoleWithWebIdentity"
+      Principal = { Federated = var.oidc_github_actions_arn }
       Condition = {
-        StringLike = {
-          "token.actions.githubusercontent.com:sub" = "repo:${var.github_repo}:ref:refs/heads/main"
+        StringEquals = {
+          "token.actions.githubusercontent.com:job_workflow_ref" = "${var.github_repo}/.github/workflows/build-base-ami.yml@refs/heads/main"
         }
       }
     }]
   })
 }
 
-resource "aws_iam_role_policy_attachment" "gha_deploy" {
+resource "aws_iam_role" "gha_build_app" {
+  name = "gha-build-app-${var.env}"
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect    = "Allow"
+      Action    = "sts:AssumeRoleWithWebIdentity"
+      Principal = { Federated = var.oidc_github_actions_arn }
+      Condition = {
+        StringEquals = {
+          "token.actions.githubusercontent.com:job_workflow_ref" = "${var.github_repo}/.github/workflows/build-ami.yml@refs/heads/main"
+        }
+      }
+    }]
+  })
+}
+
+resource "aws_iam_role" "gha_deploy" {
+  name = "gha-deploy-${var.env}"
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect    = "Allow"
+      Action    = "sts:AssumeRoleWithWebIdentity"
+      Principal = { Federated = var.oidc_github_actions_arn }
+      Condition = {
+        StringEquals = {
+          "token.actions.githubusercontent.com:job_workflow_ref" = "${var.github_repo}/.github/workflows/deploy.yml@refs/heads/main"
+        }
+      }
+    }]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "gha_build_base" {
   for_each = {
     packer_build = aws_iam_policy.packer_build.arn
-    asg_refresh  = aws_iam_policy.asg_refresh.arn
-    ssm_params   = aws_iam_policy.ssm_params.arn
+  }
+  role       = aws_iam_role.gha_build_base.name
+  policy_arn = each.value
+}
+
+resource "aws_iam_role_policy_attachment" "gha_build_app" {
+  for_each = {
+    packer_build = aws_iam_policy.packer_build.arn
+    ssm_put_ami  = aws_iam_policy.ssm_put_ami.arn
+  }
+  role       = aws_iam_role.gha_build_app.name
+  policy_arn = each.value
+}
+
+resource "aws_iam_role_policy_attachment" "gha_deploy" {
+  for_each = {
+    asg_refresh    = aws_iam_policy.asg_refresh.arn
+    ssm_get_deploy = aws_iam_policy.ssm_get_deploy.arn
   }
   role       = aws_iam_role.gha_deploy.name
   policy_arn = each.value
@@ -103,9 +151,13 @@ resource "aws_iam_policy" "packer_build" {
         "ec2:RunInstances",
         "ec2:StopInstances",
         "ec2:TerminateInstances",
-        "iam:PassRole",
       ]
       Resource = "*"
+      Condition = {
+        StringEquals = {
+          "aws:RequestedRegion" = "ap-northeast-1"
+        }
+      }
     }]
   })
 }
@@ -114,20 +166,38 @@ resource "aws_iam_policy" "asg_refresh" {
   name = "asg-refresh-${var.env}"
   policy = jsonencode({
     Version = "2012-10-17"
-    Statement = [{
-      Effect = "Allow"
-      Action = [
-        "ec2:CreateLaunchTemplateVersion",
-        "ec2:ModifyLaunchTemplate",
-        "ec2:DescribeLaunchTemplates",
-        "ec2:DescribeLaunchTemplateVersions",
-        "autoscaling:UpdateAutoScalingGroup",
-        "autoscaling:StartInstanceRefresh",
-        "autoscaling:DescribeInstanceRefreshes",
-        "autoscaling:DescribeAutoScalingGroups",
-      ]
-      Resource = "*"
-    }]
+    Statement = [
+      {
+        Sid    = "LaunchTemplateMutations"
+        Effect = "Allow"
+        Action = [
+          "ec2:CreateLaunchTemplateVersion",
+          "ec2:ModifyLaunchTemplate",
+        ]
+        Resource = "arn:aws:ec2:ap-northeast-1:${var.account_id}:launch-template/*"
+      },
+      {
+        Sid    = "ASGMutations"
+        Effect = "Allow"
+        Action = [
+          "autoscaling:UpdateAutoScalingGroup",
+          "autoscaling:StartInstanceRefresh",
+        ]
+        Resource = "arn:aws:autoscaling:ap-northeast-1:${var.account_id}:autoScalingGroup:*:autoScalingGroupName/app-${var.env}"
+      },
+      {
+        // Describe* APIs do not support resource-level permissions
+        Sid    = "DescribeNoResourceLevel"
+        Effect = "Allow"
+        Action = [
+          "ec2:DescribeLaunchTemplates",
+          "ec2:DescribeLaunchTemplateVersions",
+          "autoscaling:DescribeInstanceRefreshes",
+          "autoscaling:DescribeAutoScalingGroups",
+        ]
+        Resource = "*"
+      },
+    ]
   })
 }
 
@@ -143,18 +213,33 @@ resource "aws_iam_policy" "secrets_read" {
   })
 }
 
-resource "aws_iam_policy" "ssm_params" {
-  name = "ssm-params-${var.env}"
+resource "aws_iam_policy" "ssm_put_ami" {
+  name = "ssm-put-ami-${var.env}"
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = "ssm:PutParameter"
+      Resource = "arn:aws:ssm:ap-northeast-1:${var.account_id}:parameter/ec2-packer/${var.env}/ami-id"
+    }]
+  })
+}
+
+resource "aws_iam_policy" "ssm_get_deploy" {
+  name = "ssm-get-deploy-${var.env}"
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
       Effect = "Allow"
       Action = [
-        "ssm:PutParameter",
         "ssm:GetParameter",
         "ssm:GetParameters",
       ]
-      Resource = "arn:aws:ssm:ap-northeast-1:${var.account_id}:parameter/ec2-packer/*"
+      Resource = [
+        "arn:aws:ssm:ap-northeast-1:${var.account_id}:parameter/ec2-packer/${var.env}/ami-id",
+        "arn:aws:ssm:ap-northeast-1:${var.account_id}:parameter/ec2-packer/${var.env}/launch-template-id",
+        "arn:aws:ssm:ap-northeast-1:${var.account_id}:parameter/ec2-packer/${var.env}/asg-name",
+      ]
     }]
   })
 }
