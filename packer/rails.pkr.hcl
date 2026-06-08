@@ -15,21 +15,20 @@ variable "env" {
   default = "prd"
 }
 
-data "amazon-ami" "al2023" {
+data "amazon-ami" "ruby_base" {
   region = var.region
   filters = {
-    name                = "al2023-ami-2023.*-x86_64"
-    root-device-type    = "ebs"
-    virtualization-type = "hvm"
+    name             = "al2023-ruby-base-${var.env}-*"
+    root-device-type = "ebs"
   }
   most_recent = true
-  owners      = ["amazon"]
+  owners      = ["self"]
 }
 
 source "amazon-ebs" "rails" {
   region        = var.region
-  source_ami    = data.amazon-ami.al2023.id
-  instance_type = "t3.small"
+  source_ami    = data.amazon-ami.ruby_base.id
+  instance_type = "t3.medium"
   ssh_username  = "ec2-user"
   ami_name      = "rails-app-${var.env}-{{timestamp}}"
   tags = {
