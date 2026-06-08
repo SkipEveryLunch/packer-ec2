@@ -33,9 +33,20 @@ source "amazon-ebs" "base" {
   ssh_username  = "ec2-user"
   ami_name      = "al2023-ruby-base-${var.env}-{{timestamp}}"
   tags = {
-    Name = "al2023-ruby-base-${var.env}"
-    Env  = var.env
-    Role = "al2023-ruby-base"
+    Name    = "al2023-ruby-base-${var.env}"
+    Env     = var.env
+    Role    = "al2023-ruby-base"
+    Manager = "packer"
+  }
+  run_tags = {
+    Name    = "packer-builder-al2023-ruby-base-${var.env}"
+    Manager = "packer"
+  }
+  run_volume_tags = {
+    Manager = "packer"
+  }
+  snapshot_tags = {
+    Manager = "packer"
   }
 }
 

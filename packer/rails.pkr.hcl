@@ -32,8 +32,19 @@ source "amazon-ebs" "rails" {
   ssh_username  = "ec2-user"
   ami_name      = "rails-app-${var.env}-{{timestamp}}"
   tags = {
-    Name = "rails-app-${var.env}"
-    Env  = var.env
+    Name    = "rails-app-${var.env}"
+    Env     = var.env
+    Manager = "packer"
+  }
+  run_tags = {
+    Name    = "packer-builder-rails-app-${var.env}"
+    Manager = "packer"
+  }
+  run_volume_tags = {
+    Manager = "packer"
+  }
+  snapshot_tags = {
+    Manager = "packer"
   }
 }
 
